@@ -28,13 +28,18 @@ No necesita instalar nada aparte de Python 3.10+ (ya incluido en macOS con Pytho
    - Mac: `Iniciar (Mac).command`. La primera vez macOS puede bloquearlo: clic derecho → **Abrir** → **Abrir**.
    - Windows: `Iniciar (Windows).bat`. Si aparece "Windows protegió su PC": **Más información → Ejecutar de todas formas**.
      Si el firewall pregunta, permite el acceso en **redes privadas**.
-4. La primera vez se abre el archivo de configuración. Llena:
-   - `GMAIL_USUARIO`: el correo donde llegan las notificaciones.
-   - `GMAIL_CLAVE_APP`: contraseña de aplicación de 16 letras, creada en
-     <https://myaccount.google.com/apppasswords> (requiere verificación en 2 pasos).
-   - `PIN_ACCESO` (recomendado): PIN para abrir el panel.
+4. La primera vez, el panel se abre en el navegador con la pantalla **Conectar cuenta de Gmail**:
+   - **Correo de Gmail** donde llegan las notificaciones.
+   - **Contraseña de aplicación** de 16 letras, creada en <https://myaccount.google.com/apppasswords>
+     (requiere verificación en 2 pasos).
+   - **PIN** (recomendado) para que solo los empleados abran el panel.
 
-   Guarda, vuelve a la ventana negra y presiona Enter. El panel se abre en el navegador.
+   Al tocar **Probar conexión y guardar**, el sistema verifica con Gmail y guarda los datos en la
+   base local (`datos/pagos.db`) de ese computador. No hay que crear ni editar ningún archivo.
+   Para cambiarlos después: botón **⚙︎ Configuración** del panel.
+
+   Por seguridad, la cuenta solo se puede ver o cambiar desde el computador donde corre el
+   sistema (`http://localhost:8080`), nunca desde los celulares, y la contraseña nunca se muestra.
 
 > Solo **un** computador necesita correr el sistema. Los demás empleados abren desde el
 > celular la dirección `http://192.168.x.x:8080` que aparece en la ventana.
@@ -44,7 +49,7 @@ No necesita instalar nada aparte de Python 3.10+ (ya incluido en macOS con Pytho
 - Cada vez que se abre con `Iniciar`, el sistema busca y descarga la última versión de GitHub.
 - Para actualizar a mano: doble clic en `Actualizar (Mac).command` o `Actualizar (Windows).bat`
   (con el panel cerrado).
-- La configuración (`.env`) y los pagos guardados (`datos/`) **nunca** se reemplazan.
+- La cuenta conectada y los pagos guardados (`datos/`) **nunca** se reemplazan.
 
 Para publicar una nueva versión (desde el computador de desarrollo):
 
@@ -63,6 +68,7 @@ En el panel el empleado:
 3. Si aparece el pago verde, toca **Validar y entregar**.
 
 Desde terminal también funciona: `python3 main.py probar-conexion` y `python3 main.py`.
+El archivo `.env` es opcional (configuración avanzada); lo normal es configurar desde el panel.
 
 ## Ajustar a tus correos reales
 

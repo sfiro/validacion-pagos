@@ -44,19 +44,32 @@ class Config:
 
     @property
     def correo_configurado(self) -> bool:
-        return bool(
-            self.gmail_usuario and self.gmail_clave_app
-            and self.gmail_usuario != "tucorreo@gmail.com"
-            and not self.gmail_clave_app.startswith("xxxx")
-        )
+        return bool(self.gmail_usuario and self.gmail_clave_app)
+
+
+# Ajustes que se pueden cambiar desde el panel (se guardan en la base local)
+AJUSTES_EDITABLES = ("gmail_usuario", "gmail_clave_app", "pin_acceso", "imap_carpeta")
+
+
+def aplicar_ajustes(cfg: Config, ajustes: dict) -> Config:
+    """Los ajustes guardados en la base local tienen prioridad sobre el .env."""
+    for clave in AJUSTES_EDITABLES:
+        if ajustes.get(clave) is not None:
+            valor = ajustes[clave]
+            setattr(cfg, clave, valor.replace(" ", "") if clave == "gmail_clave_app" else valor)
+    return cfg
 
 
 def cargar_config() -> Config:
     _cargar_env(RAIZ / ".env")
     e = os.environ.get
+    usuario = e("GMAIL_USUARIO", "")
+    clave = e("GMAIL_CLAVE_APP", "").replace(" ", "")
+    if usuario == "tucorreo@gmail.com" or clave.startswith("xxxx"):  # valores de ejemplo de .env.example
+        usuario, clave = "", ""
     return Config(
-        gmail_usuario=e("GMAIL_USUARIO", ""),
-        gmail_clave_app=e("GMAIL_CLAVE_APP", "").replace(" ", ""),
+        gmail_usuario=usuario,
+        gmail_clave_app=clave,
         imap_servidor=e("IMAP_SERVIDOR", "imap.gmail.com"),
         imap_carpeta=e("IMAP_CARPETA", "INBOX"),
         dominios_bancolombia=_lista(

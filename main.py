@@ -9,16 +9,13 @@ Uso:
 import imaplib
 import json
 import logging
-import os
-import shutil
 import socket
-import subprocess
 import sys
 import threading
 import webbrowser
 from pathlib import Path
 
-from app.config import RAIZ, cargar_config
+from app.config import aplicar_ajustes, cargar_config
 from app.correo import Vigilante, procesar_mensaje, revisar_correo
 from app.db import BaseDatos
 from app.servidor import crear_servidor
@@ -33,43 +30,14 @@ def ip_local() -> str:
         return "127.0.0.1"
 
 
-def abrir_editor(ruta: Path) -> None:
-    if sys.platform == "win32":
-        subprocess.Popen(["notepad.exe", str(ruta)])
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", "-e", str(ruta)])
-    else:
-        subprocess.Popen(["xdg-open", str(ruta)])
-
-
-def asegurar_env(cfg):
-    """Primera vez en un equipo: crea el .env y lo abre para que lo llenen."""
-    env = RAIZ / ".env"
-    if not env.exists():
-        shutil.copy(RAIZ / ".env.example", env)
-    if cfg.correo_configurado:
-        return cfg
-    print("\n=== Configuración inicial ===")
-    print("Se abrió el archivo de configuración (.env). Escribe:")
-    print("  GMAIL_USUARIO   = el correo donde llegan las notificaciones")
-    print("  GMAIL_CLAVE_APP = la contraseña de aplicación de 16 letras")
-    print("  PIN_ACCESO      = (opcional) un PIN para abrir el panel")
-    print("Guarda el archivo y ciérralo.")
-    abrir_editor(env)
-    input("\nCuando lo hayas guardado, presiona Enter aquí para continuar... ")
-    for clave in ("GMAIL_USUARIO", "GMAIL_CLAVE_APP", "PIN_ACCESO", "IMAP_CARPETA"):
-        os.environ.pop(clave, None)
-    return cargar_config()
-
-
 def iniciar(cfg, db, abrir_navegador=False):
     if abrir_navegador:
         threading.Timer(1.5, webbrowser.open, (f"http://localhost:{cfg.puerto}",)).start()
-    if cfg.correo_configurado:
-        Vigilante(cfg, db).start()
-    else:
-        print("⚠️  Falta GMAIL_USUARIO / GMAIL_CLAVE_APP en el archivo .env. El panel abre, pero no leerá correos.")
-    servidor = crear_servidor(cfg, db)
+    vigilante = Vigilante(cfg, db)
+    vigilante.start()
+    if not cfg.correo_configurado:
+        print("⚠️  Falta conectar la cuenta de Gmail: hazlo en el panel, desde este computador.")
+    servidor = crear_servidor(cfg, db, al_configurar=vigilante.despertar.set)
     print("\nPanel de pagos listo:")
     print(f"  En este computador:      http://localhost:{cfg.puerto}")
     print(f"  Celulares en el WiFi:    http://{ip_local()}:{cfg.puerto}")
@@ -82,7 +50,7 @@ def iniciar(cfg, db, abrir_navegador=False):
 
 def probar_conexion(cfg, db):
     if not cfg.correo_configurado:
-        sys.exit("Falta GMAIL_USUARIO / GMAIL_CLAVE_APP en el archivo .env")
+        sys.exit("Falta conectar la cuenta de Gmail. Abre el panel (Iniciar) y configúrala ahí.")
     try:
         n = revisar_correo(cfg, db)
     except imaplib.IMAP4.error as e:
@@ -105,7 +73,7 @@ def main():
             flujo.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             pass
-    cfg = cargar_config()
+    cfg = cargar_config()  # .env es opcional; lo normal es configurar desde el panel
     args = sys.argv[1:]
     abrir = "--abrir" in args
     args = [a for a in args if a != "--abrir"]
@@ -113,9 +81,8 @@ def main():
     if comando == "probar":
         probar(cfg, args[1:])
         return
-    if abrir:
-        cfg = asegurar_env(cfg)
     db = BaseDatos(cfg.base_datos)
+    aplicar_ajustes(cfg, db.get_ajustes())
     if comando == "iniciar":
         try:
             iniciar(cfg, db, abrir_navegador=abrir)

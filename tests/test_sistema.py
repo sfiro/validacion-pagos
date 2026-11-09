@@ -75,3 +75,27 @@ class Validacion(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Configuracion(unittest.TestCase):
+    def test_guardar_desde_panel(self):
+        import json, threading, urllib.request
+        from unittest import mock
+        from app import servidor
+        with tempfile.TemporaryDirectory() as d:
+            db = BaseDatos(Path(d) / "p.db")
+            cfg = cargar_config(); cfg.gmail_usuario = cfg.gmail_clave_app = ""; cfg.puerto = 0; cfg.pin_acceso = ""
+            avisos = []
+            with mock.patch.object(servidor, "probar_credenciales", return_value=(True, "ok")):
+                srv = servidor.crear_servidor(cfg, db, al_configurar=lambda: avisos.append(1))
+                threading.Thread(target=srv.serve_forever, daemon=True).start()
+                url = f"http://127.0.0.1:{srv.server_address[1]}/api/configuracion"
+                pedido = urllib.request.Request(url, method="POST", headers={"Content-Type": "application/json"},
+                    data=json.dumps({"gmail_usuario": "Negocio@Gmail.com", "gmail_clave_app": "abcd efgh ijkl mnop",
+                                     "pin_acceso": "1234"}).encode())
+                respuesta = json.loads(urllib.request.urlopen(pedido).read())
+                srv.shutdown()
+            self.assertNotIn("abcdefghijklmnop", json.dumps(respuesta))  # la clave nunca se devuelve
+            self.assertEqual(db.get_ajustes()["gmail_clave_app"], "abcdefghijklmnop")
+            self.assertEqual((cfg.gmail_usuario, cfg.pin_acceso), ("negocio@gmail.com", "1234"))
+            self.assertTrue(cfg.correo_configurado and avisos)

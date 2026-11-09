@@ -64,13 +64,32 @@
   dialog input { width: 100%; font-size: 18px; padding: 10px; margin: 10px 0; border: 1px solid var(--line);
     border-radius: 10px; background: var(--bg); color: var(--text); }
   dialog::backdrop { background: rgba(0,0,0,.45); }
+  #btnConfig { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 99px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer; }
+  #vistaConfig { max-width: 520px; margin: 0 auto; padding: 16px; }
+  #vistaConfig .caja { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+  #vistaConfig h2 { margin: 0 0 4px; font-size: 20px; }
+  #vistaConfig label { display: block; font-weight: 600; font-size: 14px; margin-top: 16px; }
+  #vistaConfig label small { display: block; font-weight: 400; color: var(--muted); margin-top: 2px; }
+  #vistaConfig input[type=text], #vistaConfig input[type=email], #vistaConfig input[type=password] {
+    width: 100%; font-size: 16px; padding: 10px 12px; margin-top: 6px; border: 1px solid var(--line);
+    border-radius: 10px; background: var(--bg); color: var(--text); }
+  #vistaConfig ol { padding-left: 20px; margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+  #vistaConfig a { color: var(--accent); }
+  #vistaConfig .check { display: flex; gap: 8px; align-items: center; font-weight: 400; }
+  #cfgMensaje { margin-top: 14px; font-size: 14px; font-weight: 600; }
+  #cfgMensaje.error { color: var(--bad); } #cfgMensaje.ok { color: var(--ok); }
+  .botones { display: flex; gap: 8px; margin-top: 18px; }
+  .botones .btn { flex: 1; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<header>
+<header id="cabecera">
   <div class="fila">
     <h1>Pagos recibidos</h1>
     <span id="salud">Conectando…</span>
+    <button id="btnConfig" hidden title="Cuenta de Gmail y PIN">⚙︎ Configuración</button>
   </div>
   <div class="fila" style="justify-content:space-between">
     <span id="totales"></span>
@@ -92,6 +111,52 @@
   </div>
 </header>
 <main id="lista"><p class="vacio">Cargando…</p></main>
+
+<section id="vistaConfig" hidden>
+  <form class="caja" id="formConfig" autocomplete="off">
+    <h2>Conectar cuenta de Gmail</h2>
+    <p style="margin:0;color:var(--muted);font-size:14px">
+      La cuenta donde llegan las notificaciones de Bancolombia y Bold. Se guarda solo en este computador.
+    </p>
+
+    <label>Correo de Gmail
+      <input type="email" id="cfgUsuario" required placeholder="negocio@gmail.com">
+    </label>
+
+    <label>Contraseña de aplicación
+      <small>No es tu contraseña normal de Gmail. Son 16 letras que crea Google:</small>
+      <input type="password" id="cfgClave" placeholder="abcd efgh ijkl mnop">
+    </label>
+    <ol>
+      <li>Activa la <a href="https://myaccount.google.com/signinoptions/twosv" target="_blank" rel="noopener">verificación en 2 pasos</a> de la cuenta.</li>
+      <li>Entra a <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">Contraseñas de aplicaciones</a>, escribe un nombre como "Panel pagos" y toca Crear.</li>
+      <li>Copia las 16 letras y pégalas aquí.</li>
+    </ol>
+
+    <label>PIN para abrir el panel <small>Recomendado: evita que clientes en tu WiFi vean los pagos. 4 a 8 números.</small>
+      <input type="password" id="cfgPin" inputmode="numeric" pattern="\d{4,8}" placeholder="Sin PIN">
+    </label>
+    <label class="check" id="filaQuitarPin" hidden><input type="checkbox" id="cfgQuitarPin"> Quitar el PIN actual</label>
+
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;color:var(--muted);font-size:13px">Avanzado</summary>
+      <label>Carpeta de Gmail a revisar
+        <small>Déjalo en INBOX. Si un filtro archiva estos correos, usa <code>[Gmail]/Todos</code> (o <code>[Gmail]/All Mail</code>).</small>
+        <input type="text" id="cfgCarpeta" placeholder="INBOX">
+      </label>
+    </details>
+
+    <div id="cfgMensaje" role="status"></div>
+    <div class="botones">
+      <button type="button" class="btn sec" id="cfgCancelar" hidden>Cancelar</button>
+      <button class="btn validar" id="cfgGuardar">Probar conexión y guardar</button>
+    </div>
+  </form>
+</section>
+<p id="noLocal" class="vacio" hidden style="padding:40px 16px">
+  El sistema todavía no tiene una cuenta de Gmail conectada.<br>
+  Configúrala desde el computador donde está corriendo, en <b>http://localhost:8080</b>.
+</p>
 
 <dialog id="dlgNombre">
   <form method="dialog">
@@ -148,7 +213,7 @@ function pedirPin() {
   if ($("#dlgPin").open) return;
   $("#dlgPin").showModal();
 }
-$("#dlgPin").addEventListener("close", () => { guardar("pin", $("#inPin").value); cargar(); });
+$("#dlgPin").addEventListener("close", () => { guardar("pin", $("#inPin").value); location.reload(); });
 
 function nombreEmpleado() { return leer("empleado"); }
 function pedirNombre() { $("#inNombre").value = nombreEmpleado(); $("#dlgNombre").showModal(); }
@@ -227,6 +292,7 @@ async function cargarEstado() {
     const { datos } = await api("/api/estado");
     const s = $("#salud");
     if (!datos.correo_configurado) { s.className = "error"; s.textContent = "Correo sin configurar"; }
+    else if (datos.ultimo_error && infoServidor.es_local) { s.className = "error"; s.textContent = "⚠️ Sin conexión al correo · revisar"; s.title = datos.ultimo_error; s.onclick = abrirConfig; s.style.cursor = "pointer"; }
     else if (datos.ultimo_error) { s.className = "error"; s.textContent = "⚠️ Sin conexión al correo"; s.title = datos.ultimo_error; }
     else if (datos.ultima_revision) { s.className = "ok"; s.textContent = `● Correo al día · ${hace(datos.ultima_revision)}`; s.title = ""; }
     else { s.className = ""; s.textContent = "Revisando correo…"; }
@@ -247,11 +313,69 @@ $("#filtros").addEventListener("click", (e) => {
 });
 let t; $("#buscar").addEventListener("input", () => { clearTimeout(t); t = setTimeout(cargar, 250); });
 
-pintarEmpleado();
-fetch("/api/config").then((r) => r.json()).then((c) => { if (c.requiere_pin && !leer("pin")) pedirPin(); });
-cargar(); cargarEstado();
-setInterval(cargar, 5000); setInterval(cargarEstado, 10000);
-if (!nombreEmpleado()) setTimeout(pedirNombre, 400);
+// ------------------------------------------------------------ configuración
+let infoServidor = {};
+function mostrarVista(vista) {
+  $("#vistaConfig").hidden = vista !== "config";
+  $("#noLocal").hidden = vista !== "noLocal";
+  $("#cabecera").hidden = $("#lista").hidden = vista !== "pagos";
+}
+async function abrirConfig() {
+  const { ok, datos } = await api("/api/configuracion");
+  if (!ok) { alert(datos.error); return; }
+  $("#cfgUsuario").value = datos.gmail_usuario || "";
+  $("#cfgClave").value = "";
+  $("#cfgClave").required = !datos.tiene_clave;
+  $("#cfgClave").placeholder = datos.tiene_clave ? "Guardada · déjala vacía para no cambiarla" : "abcd efgh ijkl mnop";
+  $("#cfgCarpeta").value = datos.imap_carpeta && datos.imap_carpeta !== "INBOX" ? datos.imap_carpeta : "";
+  $("#cfgPin").value = ""; $("#cfgQuitarPin").checked = false;
+  $("#cfgPin").placeholder = datos.tiene_pin ? "Guardado · vacío para no cambiarlo" : "Sin PIN";
+  $("#filaQuitarPin").hidden = !datos.tiene_pin;
+  $("#cfgCancelar").hidden = !infoServidor.configurado;
+  $("#cfgMensaje").textContent = ""; $("#cfgMensaje").className = "";
+  mostrarVista("config");
+}
+$("#btnConfig").onclick = abrirConfig;
+$("#cfgCancelar").onclick = () => mostrarVista("pagos");
+$("#formConfig").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const msg = $("#cfgMensaje"), boton = $("#cfgGuardar");
+  boton.disabled = true; boton.textContent = "Probando conexión con Gmail…";
+  msg.className = ""; msg.textContent = "";
+  try {
+    const pin = $("#cfgPin").value.trim();
+    const { ok, datos } = await api("/api/configuracion", { method: "POST", body: JSON.stringify({
+      gmail_usuario: $("#cfgUsuario").value, gmail_clave_app: $("#cfgClave").value,
+      imap_carpeta: $("#cfgCarpeta").value, pin_acceso: pin, quitar_pin: $("#cfgQuitarPin").checked,
+    }) });
+    if (!ok) { msg.className = "error"; msg.textContent = "❌ " + datos.error; return; }
+    if ($("#cfgQuitarPin").checked) guardar("pin", ""); else if (pin) guardar("pin", pin);
+    msg.className = "ok"; msg.textContent = "✅ Conectado. Ya se están leyendo las notificaciones.";
+    infoServidor.configurado = true;
+    setTimeout(() => { mostrarVista("pagos"); ultimaFirma = ""; cargar(); cargarEstado(); }, 1200);
+  } catch (err) {
+    if (err.message !== "pin") { msg.className = "error"; msg.textContent = "❌ No se pudo guardar: " + err.message; }
+  } finally {
+    boton.disabled = false; boton.textContent = "Probar conexión y guardar";
+  }
+});
+
+async function arrancar() {
+  infoServidor = await fetch("/api/config").then((r) => r.json());
+  $("#btnConfig").hidden = !infoServidor.es_local;
+  if (infoServidor.requiere_pin && !leer("pin")) pedirPin();
+  if (!infoServidor.configurado) {
+    if (infoServidor.es_local) { if (!infoServidor.requiere_pin || leer("pin")) abrirConfig(); else mostrarVista("config"); }
+    else mostrarVista("noLocal");
+    return;
+  }
+  mostrarVista("pagos");
+  pintarEmpleado();
+  cargar(); cargarEstado();
+  setInterval(cargar, 5000); setInterval(cargarEstado, 10000);
+  if (!nombreEmpleado()) setTimeout(pedirNombre, 400);
+}
+arrancar();
 </script>
 </body>
 </html>

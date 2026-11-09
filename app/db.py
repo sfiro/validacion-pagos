@@ -1,6 +1,7 @@
 """Base de datos SQLite de pagos recibidos."""
 from __future__ import annotations
 
+import os
 import sqlite3
 import threading
 from datetime import datetime, timedelta
@@ -32,6 +33,7 @@ CREATE TABLE IF NOT EXISTS pagos (
 CREATE INDEX IF NOT EXISTS idx_pagos_recibido ON pagos(recibido_en);
 CREATE INDEX IF NOT EXISTS idx_pagos_monto ON pagos(monto_centavos);
 CREATE TABLE IF NOT EXISTS estado (clave TEXT PRIMARY KEY, valor TEXT);
+CREATE TABLE IF NOT EXISTS ajustes (clave TEXT PRIMARY KEY, valor TEXT);
 """
 
 COLUMNAS_PUBLICAS = (
@@ -48,6 +50,24 @@ class BaseDatos:
         self._lock = threading.Lock()
         with self._lock:
             self._con.executescript(ESQUEMA)
+        try:
+            os.chmod(ruta, 0o600)  # solo el usuario del computador puede leer la base
+        except OSError:
+            pass
+
+    # ----------------------------------------------------------- ajustes
+    def get_ajustes(self) -> dict:
+        with self._lock:
+            return {f["clave"]: f["valor"] for f in self._con.execute("SELECT clave, valor FROM ajustes")}
+
+    def guardar_ajustes(self, ajustes: dict) -> None:
+        with self._lock, self._con:
+            for clave, valor in ajustes.items():
+                self._con.execute(
+                    "INSERT INTO ajustes(clave, valor) VALUES(?, ?) "
+                    "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor",
+                    (clave, valor),
+                )
 
     # ------------------------------------------------------------ estado
     def get_estado(self, clave: str) -> str | None:

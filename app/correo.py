@@ -155,7 +155,7 @@ def revisar_correo(cfg: Config, db: BaseDatos) -> int:
         if tipo != "OK":
             raise RuntimeError(f"No se pudo abrir la carpeta {cfg.imap_carpeta}")
         uidvalidity = (imap.untagged_responses.get("UIDVALIDITY") or [b"0"])[0].decode()
-        clave = f"ultimo_uid:{cfg.imap_carpeta}:{uidvalidity}"
+        clave = f"ultimo_uid:{cfg.gmail_usuario.lower()}:{cfg.imap_carpeta}:{uidvalidity}"
         ultimo = int(db.get_estado(clave) or 0)
 
         if ultimo:
@@ -187,15 +187,36 @@ def revisar_correo(cfg: Config, db: BaseDatos) -> int:
     return guardados
 
 
+def probar_credenciales(servidor: str, usuario: str, clave: str, carpeta: str) -> tuple[bool, str]:
+    """Intenta entrar a Gmail con los datos dados, sin guardar nada."""
+    try:
+        with imaplib.IMAP4_SSL(servidor, ssl_context=contexto_ssl(), timeout=20) as imap:
+            imap.login(usuario, clave)
+            tipo, _ = imap.select(f'"{carpeta}"', readonly=True)
+            if tipo != "OK":
+                return False, f'Entró a Gmail, pero no existe la carpeta "{carpeta}".'
+        return True, "Conexión correcta"
+    except imaplib.IMAP4.error:
+        return False, ("Gmail rechazó el correo o la contraseña. Usa una contraseña de aplicación "
+                       "de 16 letras, no tu contraseña normal.")
+    except OSError as e:
+        return False, f"No se pudo conectar con Gmail (¿hay internet?): {e}"
+
+
 class Vigilante(threading.Thread):
     """Revisa el correo cada N segundos en segundo plano."""
 
     def __init__(self, cfg: Config, db: BaseDatos):
         super().__init__(daemon=True, name="vigilante-correo")
         self.cfg, self.db = cfg, db
+        self.despertar = threading.Event()
 
     def run(self):
         while True:
+            self.despertar.clear()
+            if not self.cfg.correo_configurado:
+                self.despertar.wait(5)
+                continue
             try:
                 n = revisar_correo(self.cfg, self.db)
                 self.db.set_estado("ultima_revision", ahora().isoformat())
@@ -206,7 +227,7 @@ class Vigilante(threading.Thread):
                 self._error(f"Gmail rechazó el acceso: {e}. Revisa usuario y contraseña de aplicación.")
             except Exception as e:
                 self._error(f"{type(e).__name__}: {e}")
-            time.sleep(self.cfg.segundos_entre_revisiones)
+            self.despertar.wait(self.cfg.segundos_entre_revisiones)
 
     def _error(self, mensaje: str):
         log.error(mensaje)
