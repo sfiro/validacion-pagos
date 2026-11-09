@@ -22,8 +22,18 @@ PROTEGIDOS = {".env", "datos", ".git", ".version_instalada"}
 AGENTE = {"User-Agent": "validacion-pagos-actualizador"}
 
 
+def _contexto_ssl():
+    try:
+        sys.path.insert(0, str(RAIZ))
+        from app.certificados import contexto_ssl
+        return contexto_ssl()
+    except Exception:
+        return None
+
+
 def _get(url: str, timeout: int = 15) -> bytes:
-    with urllib.request.urlopen(urllib.request.Request(url, headers=AGENTE), timeout=timeout) as r:
+    pedido = urllib.request.Request(url, headers=AGENTE)
+    with urllib.request.urlopen(pedido, timeout=timeout, context=_contexto_ssl()) as r:
         return r.read()
 
 

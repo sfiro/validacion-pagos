@@ -14,6 +14,7 @@ from email.message import EmailMessage
 from email.utils import parseaddr, parsedate_to_datetime
 
 from . import parsers
+from .certificados import contexto_ssl
 from .config import Config
 from .db import BaseDatos
 from .tiempo import COLOMBIA, ahora
@@ -148,7 +149,7 @@ def _criterio_remitentes(cfg: Config) -> list[str]:
 def revisar_correo(cfg: Config, db: BaseDatos) -> int:
     """Descarga los correos nuevos de Bancolombia/Bold. Devuelve cuántos pagos guardó."""
     guardados = 0
-    with imaplib.IMAP4_SSL(cfg.imap_servidor) as imap:
+    with imaplib.IMAP4_SSL(cfg.imap_servidor, ssl_context=contexto_ssl()) as imap:
         imap.login(cfg.gmail_usuario, cfg.gmail_clave_app)
         tipo, _ = imap.select(f'"{cfg.imap_carpeta}"', readonly=True)  # readonly: no marca como leído
         if tipo != "OK":
