@@ -90,6 +90,9 @@ python3 -m unittest discover -s tests -v
 
 ## Estructura
 
+Detalle técnico (flujo, base de datos, estados, API): [MODELO.md](MODELO.md).
+Guía para desarrollar con Claude Code: [CLAUDE.md](CLAUDE.md).
+
 | Archivo | Qué hace |
 |---|---|
 | `Iniciar …` / `Actualizar …` | Lanzadores de doble clic para Mac y Windows |
