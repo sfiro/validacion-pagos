@@ -10,6 +10,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -37,9 +38,10 @@ def _get(url: str, timeout: int = 15) -> bytes:
         return r.read()
 
 
-def ultima_version() -> tuple[str, str]:
-    datos = json.loads(_get(f"https://api.github.com/repos/{REPO}/commits/{RAMA}"))
-    return datos["sha"], datos["commit"]["message"].splitlines()[0]
+def ultima_version() -> tuple[str, str, str]:
+    # el parámetro t evita respuestas viejas guardadas en caché
+    datos = json.loads(_get(f"https://api.github.com/repos/{REPO}/commits/{RAMA}?t={int(time.time())}"))
+    return datos["sha"], datos["commit"]["message"].splitlines()[0], datos["commit"]["committer"]["date"]
 
 
 def actualizar_con_git(silencioso: bool) -> None:
@@ -86,15 +88,17 @@ def main() -> None:
     if not silencioso:
         print("Buscando actualizaciones…")
     try:
-        sha, mensaje = ultima_version()
+        sha, mensaje, fecha = ultima_version()
     except Exception as e:
         print(f"⚠️  No se pudo revisar actualizaciones (¿sin internet?): {e}")
         return
 
-    instalada = ARCHIVO_VERSION.read_text().strip() if ARCHIVO_VERSION.exists() else ""
-    if sha == instalada:
+    # formato del archivo: "<sha> <fecha ISO del commit>"
+    instalada, fecha_instalada = (ARCHIVO_VERSION.read_text().split() + ["", ""])[:2] \
+        if ARCHIVO_VERSION.exists() else ("", "")
+    if sha == instalada or (fecha_instalada and fecha <= fecha_instalada):
         if not silencioso:
-            print(f"✅ Ya tienes la última versión ({sha[:7]}).")
+            print(f"✅ Ya tienes la última versión ({instalada[:7] or sha[:7]}).")
         return
 
     print(f"⬇️  Descargando actualización: {mensaje}")
@@ -103,7 +107,7 @@ def main() -> None:
     except Exception as e:
         print(f"❌ Falló la actualización: {e}. El sistema sigue con la versión anterior.")
         return
-    ARCHIVO_VERSION.write_text(sha)
+    ARCHIVO_VERSION.write_text(f"{sha} {fecha}")
     print(f"✅ Actualizado ({n} archivos). Tu configuración y tus pagos se conservaron.")
 
 
