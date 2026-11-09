@@ -1,0 +1,9 @@
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@bold.co; dmarc=pass header.from=bold.co
+From: Bold <notificaciones@bold.co>
+Subject: Transacción rechazada
+Date: Mon, 09 Nov 2026 13:50:00 -0500
+Message-ID: <ejemplo-bold-006@bold.co>
+Content-Type: text/plain; charset=utf-8
+
+Tu transacción por $30.000 fue rechazada. Tarjeta Mastercard terminada en 8888. Datáfono Bold Neo.

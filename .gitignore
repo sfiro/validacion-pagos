@@ -1,0 +1,7 @@
+.env
+datos/
+__pycache__/
+*.pyc
+.claude/
+.version_instalada
+.DS_Store

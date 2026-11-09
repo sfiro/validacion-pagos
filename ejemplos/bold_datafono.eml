@@ -1,0 +1,16 @@
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@bold.co header.s=s1 header.b=xyz;
+       dmarc=pass (p=QUARANTINE) header.from=bold.co
+From: Bold <notificaciones@bold.co>
+Subject: ¡Venta aprobada por $65.900!
+Date: Mon, 09 Nov 2026 13:40:00 -0500
+Message-ID: <ejemplo-bold-005@bold.co>
+Content-Type: text/html; charset=utf-8
+
+<html><body><h2>¡Tu venta fue aprobada!</h2>
+<table><tr><td>Monto:</td><td>$65.900</td></tr>
+<tr><td>Método de pago:</td><td>Tarjeta Visa **** 4321</td></tr>
+<tr><td>Dispositivo:</td><td>Datáfono Bold Plus</td></tr>
+<tr><td>ID de la transacción:</td><td>BX7Y2K9Q</td></tr>
+<tr><td>Fecha:</td><td>09/11/2026 1:39 p.m.</td></tr>
+<tr><td>Comisión:</td><td>$2.300</td></tr></table></body></html>

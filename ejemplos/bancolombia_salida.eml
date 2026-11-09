@@ -1,0 +1,9 @@
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@bancolombia.com.co; dmarc=pass header.from=bancolombia.com.co
+From: Bancolombia <alertasynotificaciones@bancolombia.com.co>
+Subject: Alertas y Notificaciones
+Date: Mon, 09 Nov 2026 12:00:00 -0500
+Message-ID: <ejemplo-salida-003@bancolombia.com.co>
+Content-Type: text/plain; charset=utf-8
+
+Bancolombia: Transferiste $80.000 desde tu cuenta *1234 a la cuenta *9876 el 09/11/2026 a las 11:59.

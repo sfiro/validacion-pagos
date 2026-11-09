@@ -1,0 +1,10 @@
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@bancolombia.com.co header.s=sel1 header.b=abc;
+       dmarc=pass (p=REJECT) header.from=bancolombia.com.co
+From: Bancolombia <alertasynotificaciones@bancolombia.com.co>
+Subject: Recibiste dinero en tu llave
+Date: Mon, 09 Nov 2026 11:02:00 -0500
+Message-ID: <ejemplo-llave-002@bancolombia.com.co>
+Content-Type: text/plain; charset=utf-8
+
+Bancolombia: Recibiste $120,000.00 en tu llave @tienda123 de JUAN CARLOS GOMEZ el 09/11/2026 11:01. Comprobante 0004567890.

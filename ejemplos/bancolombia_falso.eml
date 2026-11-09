@@ -1,0 +1,11 @@
+Authentication-Results: mx.google.com;
+       dkim=fail header.i=@bancolombia.com.co;
+       spf=fail smtp.mailfrom=estafa.xyz;
+       dmarc=fail (p=REJECT) header.from=bancolombia.com.co
+From: Bancolombia <alertasynotificaciones@bancolombia.com.co>
+Subject: Alertas y Notificaciones
+Date: Mon, 09 Nov 2026 12:30:00 -0500
+Message-ID: <ejemplo-falso-004@estafa.xyz>
+Content-Type: text/plain; charset=utf-8
+
+Bancolombia: Recibiste una transferencia de PEDRO RUIZ por $300.000 en tu cuenta *1234 el 09/11/2026 a las 12:29.

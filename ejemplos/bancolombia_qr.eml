@@ -1,0 +1,13 @@
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@bancolombia.com.co header.s=sel1 header.b=abc;
+       spf=pass smtp.mailfrom=bancolombia.com.co;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bancolombia.com.co
+From: Bancolombia <alertasynotificaciones@bancolombia.com.co>
+To: tienda@gmail.com
+Subject: Alertas y Notificaciones
+Date: Mon, 09 Nov 2026 10:15:00 -0500
+Message-ID: <ejemplo-qr-001@bancolombia.com.co>
+Content-Type: text/html; charset=utf-8
+
+<html><body><table><tr><td>Bancolombia: Recibiste un pago por QR de MARIA PEREZ por $45.000,00 en tu cuenta de ahorros *1234 el 09/11/2026 a las 10:14.</td></tr>
+<tr><td>Saldo disponible $1.250.000,00</td></tr></table></body></html>

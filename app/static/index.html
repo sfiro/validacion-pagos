@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Validación de pagos</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #fff; --text: #16181d; --muted: #6b7280; --line: #e5e7eb;
+    --ok: #0f9d58; --ok-bg: #e6f6ee; --warn: #b45309; --warn-bg: #fef3c7;
+    --bad: #c62828; --bad-bg: #fdecea; --accent: #1f4fd8; --banco: #fdda24; --bold: #ee424e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1115; --card: #181b21; --text: #eef0f3; --muted: #9aa1ad; --line: #2a2e36;
+      --ok-bg: #12301f; --warn-bg: #33270d; --bad-bg: #3a1616; --accent: #7aa2ff; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 12px 16px 8px;
+    border-bottom: 1px solid var(--line); }
+  .fila { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 18px; margin: 0; flex: 1; }
+  #salud { font-size: 12px; padding: 4px 10px; border-radius: 99px; background: var(--card);
+    border: 1px solid var(--line); color: var(--muted); }
+  #salud.ok { color: var(--ok); } #salud.error { color: var(--bad); background: var(--bad-bg); }
+  #empleado { font-size: 12px; color: var(--accent); background: none; border: 0; cursor: pointer; padding: 4px; }
+  input[type=search] { width: 100%; font-size: 18px; padding: 12px 14px; margin: 10px 0 8px;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); }
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+  .chips button { flex: none; border: 1px solid var(--line); background: var(--card); color: var(--text);
+    padding: 6px 12px; border-radius: 99px; font-size: 13px; cursor: pointer; }
+  .chips button.activo { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .sep { width: 1px; background: var(--line); flex: none; }
+  #totales { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  main { padding: 12px 16px 40px; max-width: 760px; margin: 0 auto; }
+  .pago { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px;
+    margin-bottom: 10px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; }
+  .pago.nuevo { box-shadow: 0 0 0 2px var(--accent); }
+  .pago.validado { opacity: .72; }
+  .pago.sospechoso, .pago.rechazado { border-color: var(--bad); background: var(--bad-bg); }
+  .pago.revisar { border-color: var(--warn); }
+  .monto { font-size: 24px; font-weight: 700; letter-spacing: -.3px; }
+  .etiquetas { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px;
+    background: var(--bg); border: 1px solid var(--line); }
+  .tag.bancolombia { background: var(--banco); color: #222; border-color: transparent; }
+  .tag.bold { background: var(--bold); color: #fff; border-color: transparent; }
+  .tag.nuevo { background: var(--accent); color: #fff; border-color: transparent; }
+  .detalle { color: var(--muted); font-size: 13px; grid-column: 1 / -1; }
+  .hora { text-align: right; font-size: 13px; color: var(--muted); }
+  .hora b { display: block; color: var(--text); font-size: 15px; }
+  .acciones { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+  .btn { border: 0; border-radius: 10px; padding: 10px 16px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn.validar { background: var(--ok); color: #fff; }
+  .btn.sec { background: none; color: var(--muted); border: 1px solid var(--line); padding: 8px 12px; font-size: 13px; }
+  .estado-ok { color: var(--ok); font-weight: 600; font-size: 14px; }
+  .alerta { font-weight: 700; color: var(--bad); font-size: 14px; }
+  .aviso { color: var(--warn); font-weight: 600; font-size: 14px; }
+  details { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+  details p { white-space: pre-wrap; word-break: break-word; margin: 6px 0 0; }
+  .vacio { text-align: center; color: var(--muted); padding: 40px 0; }
+  dialog { border: 0; border-radius: 16px; padding: 20px; background: var(--card); color: var(--text); width: min(92vw, 360px); }
+  dialog input { width: 100%; font-size: 18px; padding: 10px; margin: 10px 0; border: 1px solid var(--line);
+    border-radius: 10px; background: var(--bg); color: var(--text); }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+</style>
+</head>
+<body>
+<header>
+  <div class="fila">
+    <h1>Pagos recibidos</h1>
+    <span id="salud">Conectando…</span>
+  </div>
+  <div class="fila" style="justify-content:space-between">
+    <span id="totales"></span>
+    <button id="empleado" title="Cambiar empleado"></button>
+  </div>
+  <input type="search" id="buscar" placeholder="Buscar monto (ej. 45000), nombre o referencia" inputmode="search" autocomplete="off">
+  <div class="chips" id="filtros">
+    <button data-f="periodo" data-v="hoy" class="activo">Hoy</button>
+    <button data-f="periodo" data-v="7d">7 días</button>
+    <button data-f="periodo" data-v="30d">30 días</button>
+    <span class="sep"></span>
+    <button data-f="estado" data-v="pendiente">Por entregar</button>
+    <button data-f="estado" data-v="validado">Validados</button>
+    <button data-f="estado" data-v="" class="activo">Todos</button>
+    <span class="sep"></span>
+    <button data-f="fuente" data-v="" class="activo">Todas</button>
+    <button data-f="fuente" data-v="bancolombia">Bancolombia</button>
+    <button data-f="fuente" data-v="bold">Bold</button>
+  </div>
+</header>
+<main id="lista"><p class="vacio">Cargando…</p></main>
+
+<dialog id="dlgNombre">
+  <form method="dialog">
+    <strong>¿Quién está validando?</strong>
+    <p style="margin:6px 0 0;color:var(--muted);font-size:13px">Tu nombre queda registrado en cada pago que valides.</p>
+    <input id="inNombre" maxlength="40" required placeholder="Tu nombre">
+    <button class="btn validar" style="width:100%">Guardar</button>
+  </form>
+</dialog>
+<dialog id="dlgPin">
+  <form method="dialog">
+    <strong>PIN de acceso</strong>
+    <input id="inPin" type="password" inputmode="numeric" required autocomplete="off">
+    <button class="btn validar" style="width:100%">Entrar</button>
+  </form>
+</dialog>
+
+<script>
+const filtros = { periodo: "hoy", estado: "", fuente: "" };
+const vistos = new Set();
+let primeraCarga = true;
+const guardar = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+const leer = (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
+
+const $ = (s) => document.querySelector(s);
+const pesos = (c) => c == null ? "Valor no leído" :
+  "$" + (c / 100).toLocaleString("es-CO", { minimumFractionDigits: c % 100 ? 2 : 0, maximumFractionDigits: 2 });
+const hora = (iso) => new Date(iso).toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" });
+const fecha = (iso) => new Date(iso).toLocaleDateString("es-CO", { day: "numeric", month: "short" });
+function hace(iso) {
+  const s = Math.max(0, (Date.now() - new Date(iso)) / 1000);
+  if (s < 60) return "hace segundos";
+  if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
+  if (s < 86400) return `hace ${Math.floor(s / 3600)} h`;
+  return fecha(iso);
+}
+function el(tag, props = {}, ...hijos) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v);
+  }
+  for (const h of hijos) if (h != null && h !== false) e.append(h);
+  return e;
+}
+
+async function api(ruta, opciones = {}) {
+  const r = await fetch(ruta, { ...opciones, headers: { "Content-Type": "application/json", "X-Pin": leer("pin"), ...(opciones.headers || {}) } });
+  if (r.status === 401) { pedirPin(); throw new Error("pin"); }
+  const datos = await r.json();
+  return { ok: r.ok, status: r.status, datos };
+}
+
+function pedirPin() {
+  if ($("#dlgPin").open) return;
+  $("#dlgPin").showModal();
+}
+$("#dlgPin").addEventListener("close", () => { guardar("pin", $("#inPin").value); cargar(); });
+
+function nombreEmpleado() { return leer("empleado"); }
+function pedirNombre() { $("#inNombre").value = nombreEmpleado(); $("#dlgNombre").showModal(); }
+$("#dlgNombre").addEventListener("close", () => {
+  const n = $("#inNombre").value.trim(); if (n) guardar("empleado", n); pintarEmpleado();
+});
+function pintarEmpleado() { $("#empleado").textContent = nombreEmpleado() ? `👤 ${nombreEmpleado()} · cambiar` : "👤 Poner mi nombre"; }
+$("#empleado").onclick = pedirNombre;
+
+async function cambiarEstado(pago, accion) {
+  if (!nombreEmpleado()) { pedirNombre(); return; }
+  if (accion === "desmarcar" && !confirm("¿Volver a marcar este pago como NO entregado?")) return;
+  const { ok, status, datos } = await api(`/api/pagos/${pago.id}/${accion}`, {
+    method: "POST", body: JSON.stringify({ empleado: nombreEmpleado() }),
+  });
+  if (!ok && status === 409 && datos.pago?.validado_por) {
+    alert(`Este pago YA fue validado por ${datos.pago.validado_por} a las ${hora(datos.pago.validado_en)}.`);
+  } else if (!ok) alert(datos.error || "No se pudo guardar");
+  cargar(); cargarEstado();
+}
+
+function tarjeta(p) {
+  const esNuevo = !primeraCarga && !vistos.has(p.id) ||
+    (p.estado === "pendiente" && Date.now() - new Date(p.recibido_en) < 3 * 60 * 1000);
+  const detalle = [p.pagador && `De: ${p.pagador}`, p.cuenta && (p.fuente === "bold" ? `Tarjeta ${p.cuenta}` : `Cuenta *${p.cuenta}`),
+    p.referencia && `Ref: ${p.referencia}`, p.fecha_texto && `Fecha en correo: ${p.fecha_texto}`].filter(Boolean).join(" · ");
+
+  let accion;
+  if (p.estado === "pendiente") {
+    accion = el("button", { class: "btn validar", onclick: () => cambiarEstado(p, "validar") }, "✓ Validar y entregar");
+  } else if (p.estado === "validado") {
+    accion = el("span", {}, el("span", { class: "estado-ok" }, `✓ Validado por ${p.validado_por} · ${hora(p.validado_en)}`), " ",
+      el("button", { class: "btn sec", onclick: () => cambiarEstado(p, "desmarcar") }, "Deshacer"));
+  } else if (p.estado === "sospechoso") {
+    accion = el("span", { class: "alerta" }, "⚠️ CORREO NO VERIFICADO — no entregar. Puede ser un correo falso.");
+  } else if (p.estado === "rechazado") {
+    accion = el("span", { class: "alerta" }, "✕ Transacción RECHAZADA por Bold — no se recibió el dinero.");
+  } else {
+    accion = el("span", { class: "aviso" }, "Revisar: no se pudo leer bien este correo. Confirmar en la app del banco.");
+  }
+
+  return el("article", { class: `pago ${p.estado} ${esNuevo ? "nuevo" : ""}` },
+    el("div", {},
+      el("div", { class: "monto" }, pesos(p.monto_centavos)),
+      el("div", { class: "etiquetas" },
+        el("span", { class: `tag ${p.fuente}` }, p.fuente === "bold" ? "Bold" : "Bancolombia"),
+        el("span", { class: "tag" }, p.metodo || "—"),
+        esNuevo && el("span", { class: "tag nuevo" }, "NUEVO"))),
+    el("div", { class: "hora" }, el("b", {}, hora(p.recibido_en)), hace(p.recibido_en)),
+    detalle && el("div", { class: "detalle" }, detalle),
+    el("div", { class: "acciones" }, accion),
+    el("details", {}, el("summary", {}, "Ver correo original"),
+      el("p", {}, `Asunto: ${p.asunto || ""}\nRemitente: ${p.remitente || ""}${p.nota ? "\nNota: " + p.nota : ""}`)));
+}
+
+let pidiendo = false, ultimaFirma = "";
+async function cargar() {
+  if (pidiendo) return; pidiendo = true;
+  try {
+    const params = new URLSearchParams({ ...filtros, q: $("#buscar").value });
+    const { datos } = await api(`/api/pagos?${params}`);
+    const firma = params + JSON.stringify(datos.pagos) + Math.floor(Date.now() / 60000);
+    if (firma === ultimaFirma) return;  // nada cambió: no redibujar (evita perder toques)
+    ultimaFirma = firma;
+    const lista = $("#lista");
+    lista.replaceChildren(...(datos.pagos.length ? datos.pagos.map(tarjeta)
+      : [el("p", { class: "vacio" }, $("#buscar").value ? "Ningún pago coincide con la búsqueda." : "Aún no hay pagos en este periodo.")]));
+    datos.pagos.forEach((p) => vistos.add(p.id));
+    primeraCarga = false;
+  } catch (e) { if (e.message !== "pin") console.error(e); }
+  finally { pidiendo = false; }
+}
+
+async function cargarEstado() {
+  try {
+    const { datos } = await api("/api/estado");
+    const s = $("#salud");
+    if (!datos.correo_configurado) { s.className = "error"; s.textContent = "Correo sin configurar"; }
+    else if (datos.ultimo_error) { s.className = "error"; s.textContent = "⚠️ Sin conexión al correo"; s.title = datos.ultimo_error; }
+    else if (datos.ultima_revision) { s.className = "ok"; s.textContent = `● Correo al día · ${hace(datos.ultima_revision)}`; s.title = ""; }
+    else { s.className = ""; s.textContent = "Revisando correo…"; }
+    let n = 0, total = 0, pend = 0;
+    for (const g of datos.resumen.grupos) {
+      if (g.estado === "pendiente" || g.estado === "validado") { n += g.n; total += g.total; }
+      if (g.estado === "pendiente") pend += g.n;
+    }
+    $("#totales").textContent = `Hoy: ${n} pago(s) · ${pesos(total)} · ${pend} por entregar`;
+  } catch {}
+}
+
+$("#filtros").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  filtros[b.dataset.f] = b.dataset.v;
+  document.querySelectorAll(`#filtros button[data-f="${b.dataset.f}"]`).forEach((x) => x.classList.toggle("activo", x === b));
+  cargar();
+});
+let t; $("#buscar").addEventListener("input", () => { clearTimeout(t); t = setTimeout(cargar, 250); });
+
+pintarEmpleado();
+fetch("/api/config").then((r) => r.json()).then((c) => { if (c.requiere_pin && !leer("pin")) pedirPin(); });
+cargar(); cargarEstado();
+setInterval(cargar, 5000); setInterval(cargarEstado, 10000);
+if (!nombreEmpleado()) setTimeout(pedirNombre, 400);
+</script>
+</body>
+</html>
