@@ -82,6 +82,23 @@
   .botones { display: flex; gap: 8px; margin-top: 18px; }
   .botones .btn { flex: 1; }
   [hidden] { display: none !important; }
+  /* ---- avisos de pago ---- */
+  #btnAvisos { font-size: 12px; border: 1px solid var(--line); background: var(--card); color: var(--text);
+    border-radius: 99px; padding: 4px 10px; cursor: pointer; }
+  #btnAvisos.activo { background: var(--ok); color: #fff; border-color: var(--ok); }
+  #btnAvisos.bloqueado { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+  #avisos { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 50;
+    width: min(92vw, 440px); display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+  .toast { pointer-events: auto; cursor: pointer; border-radius: 18px; padding: 18px 20px; color: #fff;
+    background: var(--ok); box-shadow: 0 12px 32px rgba(0,0,0,.28); animation: entrar .25s ease-out; }
+  .toast.sospechoso, .toast.rechazado { background: var(--bad); }
+  .toast.revisar { background: var(--warn); }
+  .toast .t-titulo { font-size: 14px; font-weight: 600; opacity: .92; }
+  .toast .t-monto { font-size: 40px; font-weight: 800; letter-spacing: -.5px; line-height: 1.1; margin: 4px 0; }
+  .toast .t-detalle { font-size: 14px; opacity: .92; }
+  .toast .t-cerrar { font-size: 12px; opacity: .75; margin-top: 8px; }
+  @keyframes entrar { from { transform: translateY(-16px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
 </style>
 </head>
 <body>
@@ -93,7 +110,10 @@
   </div>
   <div class="fila" style="justify-content:space-between">
     <span id="totales"></span>
-    <button id="empleado" title="Cambiar empleado"></button>
+    <span class="fila" style="gap:4px">
+      <button id="btnAvisos" title="Anunciar con voz y aviso en pantalla cada pago nuevo, solo en este equipo">🔕 Activar avisos</button>
+      <button id="empleado" title="Cambiar empleado"></button>
+    </span>
   </div>
   <input type="search" id="buscar" placeholder="Buscar monto (ej. 45000), nombre o referencia" inputmode="search" autocomplete="off">
   <div class="chips" id="filtros">
@@ -110,6 +130,7 @@
     <button data-f="fuente" data-v="bold">Bold</button>
   </div>
 </header>
+<div id="avisos" aria-live="assertive"></div>
 <main id="lista"><p class="vacio">Cargando…</p></main>
 
 <section id="vistaConfig" hidden>
@@ -360,6 +381,182 @@ $("#formConfig").addEventListener("submit", async (e) => {
   }
 });
 
+// ------------------------------------------------------------ avisos de pago (voz + pantalla)
+// Se activan por equipo (localStorage). Los navegadores solo permiten sonido después de que
+// alguien toca la página, por eso el botón (o el primer toque tras recargar) "desbloquea" el audio.
+const VENTANA_AVISO_MS = 10 * 60 * 1000;  // no anunciar correos de hace más de 10 minutos
+let audioCtx = null, audioListo = false, bloqueoPantalla = null;
+let ultimoIdAnunciado = leer("ultimoIdAnunciado") === "" ? null : Number(leer("ultimoIdAnunciado"));
+const avisosActivos = () => leer("avisos") === "1";
+
+const UNI = ["", "un", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce",
+  "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve", "veinte", "veintiún",
+  "veintidós", "veintitrés", "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve"];
+const DEC = ["", "", "", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"];
+const CEN = ["", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos",
+  "setecientos", "ochocientos", "novecientos"];
+function menorMil(n) {
+  if (n === 100) return "cien";
+  const c = Math.floor(n / 100), r = n % 100;
+  const dec = r === 0 ? "" : r < 30 ? UNI[r] : DEC[Math.floor(r / 10)] + (r % 10 ? " y " + UNI[r % 10] : "");
+  return [CEN[c], dec].filter(Boolean).join(" ");
+}
+function enLetras(n) {
+  if (n === 0) return "cero";
+  const millones = Math.floor(n / 1e6), miles = Math.floor(n / 1000) % 1000, resto = n % 1000;
+  return [
+    millones && (millones === 1 ? "un millón" : enLetras(millones) + " millones"),
+    miles && (miles === 1 ? "mil" : menorMil(miles) + " mil"),
+    resto && menorMil(resto),
+  ].filter(Boolean).join(" ");
+}
+function pesosEnLetras(centavos) {
+  const p = Math.floor(centavos / 100), c = centavos % 100;
+  let texto = p === 1 ? "un peso" : enLetras(p) + (p > 0 && p % 1e6 === 0 ? " de pesos" : " pesos");
+  if (c) texto += c === 1 ? " con un centavo" : ` con ${enLetras(c)} centavos`;
+  return texto;
+}
+const METODO_HABLADO = { "QR": "código cu erre", "QR Bold": "código cu erre", "Llave": "llave",
+  "Transferencia": "transferencia", "Datáfono": "datáfono", "Link de pago": "link de pago", "PSE": "pe ese e" };
+
+function prepararAudio() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    audioListo = true;
+  } catch { audioListo = false; }
+  pedirPantallaEncendida();
+  pintarBotonAvisos();
+}
+function tono(frecuencias, duracion = 0.18, tipo = "sine") {
+  if (!audioCtx) return;
+  let t = audioCtx.currentTime;
+  for (const f of frecuencias) {
+    const osc = audioCtx.createOscillator(), vol = audioCtx.createGain();
+    osc.type = tipo; osc.frequency.value = f;
+    vol.gain.setValueAtTime(0.0001, t);
+    vol.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
+    vol.gain.exponentialRampToValueAtTime(0.0001, t + duracion);
+    osc.connect(vol).connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + duracion + 0.02);
+    t += duracion * 0.9;
+  }
+}
+function vozEspanol() {
+  const voces = speechSynthesis.getVoices().filter((v) => v.lang?.toLowerCase().startsWith("es"));
+  for (const pref of ["es-co", "es-419", "es-mx", "es-us"]) {
+    const v = voces.find((x) => x.lang.toLowerCase().replace("_", "-") === pref);
+    if (v) return v;
+  }
+  return voces[0] || null;
+}
+function hablar(texto) {
+  if (!("speechSynthesis" in window)) return;
+  const u = new SpeechSynthesisUtterance(texto);
+  const voz = vozEspanol();
+  if (voz) u.voice = voz;
+  u.lang = voz?.lang || "es-CO";
+  u.rate = 0.95;
+  speechSynthesis.speak(u);
+}
+if ("speechSynthesis" in window) speechSynthesis.getVoices();  // carga las voces por adelantado
+
+function mensajeDe(p) {
+  const fuente = p.fuente === "bold" ? "Bold" : "Bancolombia";
+  const monto = p.monto_centavos != null ? pesosEnLetras(p.monto_centavos) : "valor no leído";
+  const metodo = METODO_HABLADO[p.metodo] || (p.metodo || "").toLowerCase();
+  switch (p.estado) {
+    case "sospechoso":
+      return { titulo: "⚠️ Correo NO verificado", monto: "No entregar", detalle: `Dice ser de ${fuente}. Puede ser falso.`,
+        voz: "Atención. Llegó un correo de pago no verificado. No entregue hasta confirmar en el banco." };
+    case "rechazado":
+      return { titulo: "✕ Transacción rechazada", monto: pesos(p.monto_centavos), detalle: `${fuente} · ${p.metodo || ""}`,
+        voz: `Transacción rechazada en ${fuente}, por ${monto}. No se recibió el dinero.` };
+    case "revisar":
+      return { titulo: "Notificación para revisar", monto: pesos(p.monto_centavos), detalle: `${fuente} · confirmar en la app`,
+        voz: `Llegó una notificación de ${fuente} que hay que revisar.` };
+    default:
+      return { titulo: `💰 Pago recibido · ${fuente}`, monto: pesos(p.monto_centavos), detalle: p.metodo || "",
+        voz: `Pago recibido por ${metodo}. ${monto}.` };
+  }
+}
+function mostrarAviso(p, m) {
+  const fijo = p.estado === "sospechoso";
+  const caja = el("div", { class: `toast ${p.estado}`, role: "alert" },
+    el("div", { class: "t-titulo" }, m.titulo),
+    el("div", { class: "t-monto" }, m.monto),
+    el("div", { class: "t-detalle" }, `${m.detalle} · ${hora(p.recibido_en)}`),
+    el("div", { class: "t-cerrar" }, "Toca para cerrar"));
+  caja.onclick = () => caja.remove();
+  $("#avisos").prepend(caja);
+  while ($("#avisos").children.length > 4) $("#avisos").lastChild.remove();
+  if (!fijo) setTimeout(() => caja.remove(), 15000);
+}
+function anunciar(p, esEjemplo = false) {
+  const m = mensajeDe(p);
+  if (esEjemplo) { m.titulo = "🔔 Ejemplo de aviso · no es un pago real"; m.voz = "Ejemplo. " + m.voz; }
+  mostrarAviso(p, m);
+  if (!audioListo) return;
+  if (p.estado === "pendiente") tono([880, 1320]);
+  else tono([330, 247, 330, 247], 0.22, "square");
+  setTimeout(() => hablar(m.voz), 450);
+}
+
+async function revisarNuevos() {
+  if (!avisosActivos() || $("#lista").hidden) return;
+  try {
+    const { datos } = await api("/api/pagos?periodo=hoy");
+    const maxId = Math.max(0, ...datos.pagos.map((p) => p.id));
+    // primera vez en este equipo, o la base se reinició: solo tomar referencia, sin anunciar lo anterior
+    if (ultimoIdAnunciado === null || maxId < ultimoIdAnunciado) ultimoIdAnunciado = maxId;
+    const nuevos = datos.pagos.filter((p) => p.id > ultimoIdAnunciado).sort((a, b) => a.id - b.id);
+    for (const p of nuevos) {
+      if (p.estado !== "validado" && Date.now() - new Date(p.recibido_en) < VENTANA_AVISO_MS) anunciar(p);
+    }
+    ultimoIdAnunciado = Math.max(ultimoIdAnunciado, maxId);
+    guardar("ultimoIdAnunciado", String(ultimoIdAnunciado));
+    if (nuevos.length) { ultimaFirma = ""; cargar(); cargarEstado(); }
+  } catch (e) { if (e.message !== "pin") console.error(e); }
+}
+
+async function pedirPantallaEncendida() {
+  // Mantiene la pantalla encendida (solo funciona en http://localhost, el computador principal)
+  if (!avisosActivos() || bloqueoPantalla || !("wakeLock" in navigator)) return;
+  try {
+    bloqueoPantalla = await navigator.wakeLock.request("screen");
+    bloqueoPantalla.addEventListener("release", () => { bloqueoPantalla = null; });
+  } catch {}
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) pedirPantallaEncendida(); });
+
+function pintarBotonAvisos() {
+  const b = $("#btnAvisos");
+  if (!avisosActivos()) { b.className = ""; b.textContent = "🔕 Activar avisos"; }
+  else if (!audioListo) { b.className = "bloqueado"; b.textContent = "🔇 Toca para activar el sonido"; }
+  else { b.className = "activo"; b.textContent = "🔔 Avisos activos"; }
+}
+$("#btnAvisos").onclick = (e) => {
+  e.stopPropagation();
+  if (avisosActivos() && audioListo) {
+    guardar("avisos", "0");
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    bloqueoPantalla?.release();
+    pintarBotonAvisos();
+    return;
+  }
+  const primeraVez = !avisosActivos();
+  guardar("avisos", "1");
+  if (primeraVez) { ultimoIdAnunciado = null; guardar("ultimoIdAnunciado", ""); }
+  prepararAudio();
+  const ejemplo = { id: 0, estado: "pendiente", fuente: "bancolombia", metodo: "QR", monto_centavos: 4500000,
+    recibido_en: new Date().toISOString() };
+  hablar("Avisos activados en este equipo. Así sonará un pago.");
+  anunciar(ejemplo, true);
+  revisarNuevos();
+};
+// Tras recargar la página, el primer toque en cualquier parte vuelve a habilitar el sonido
+document.addEventListener("pointerdown", () => { if (avisosActivos() && !audioListo) prepararAudio(); }, true);
+
 async function arrancar() {
   infoServidor = await fetch("/api/config").then((r) => r.json());
   $("#btnConfig").hidden = !infoServidor.es_local;
@@ -373,6 +570,7 @@ async function arrancar() {
   pintarEmpleado();
   cargar(); cargarEstado();
   setInterval(cargar, 5000); setInterval(cargarEstado, 10000);
+  pintarBotonAvisos(); revisarNuevos(); setInterval(revisarNuevos, 4000);
   if (!nombreEmpleado()) setTimeout(pedirNombre, 400);
 }
 arrancar();

@@ -67,6 +67,24 @@ En el panel el empleado:
 2. Cuando el cliente dice "ya le pagué $45.000", escribe `45000` en el buscador.
 3. Si aparece el pago verde, toca **Validar y entregar**.
 
+### Avisos de pago con voz
+
+En el equipo del mostrador toca **🔕 Activar avisos** (arriba a la derecha). Desde ese momento,
+cada pago nuevo:
+
+- suena con un "ding" y una voz dice, por ejemplo, *"Pago recibido por llave. Ciento veinte mil pesos"*;
+- aparece un aviso grande en verde con el monto (se cierra solo o al tocarlo).
+
+Si llega un correo **no verificado** (posible estafa) suena una alarma, el aviso sale en rojo
+con *"No entregar"* y se queda hasta que lo cierren. La voz nunca dice el nombre de quien pagó.
+
+- Los avisos se activan **por equipo**: actívalos solo en el computador o tablet del mostrador.
+- Si recargas la página, el botón se pone naranja (*"Toca para activar el sonido"*): toca
+  cualquier parte de la página. Los navegadores no dejan sonar una página sin un toque.
+- El panel debe quedar **abierto y con la pantalla encendida**. En un celular bloqueado el
+  navegador se pausa y no habla. En el computador principal el panel evita que la pantalla se apague.
+- Sube el volumen del equipo.
+
 Desde terminal también funciona: `python3 main.py probar-conexion` y `python3 main.py`.
 El archivo `.env` es opcional (configuración avanzada); lo normal es configurar desde el panel.
 

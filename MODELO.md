@@ -149,6 +149,33 @@ correo ──▶  pendiente ──── Validar y entregar ──▶ validado
   gana; el otro recibe `409` con el nombre de quien ya lo validó.
 - `desmarcar` vuelve `validado → pendiente` y deja constancia en `nota`.
 
+## Avisos de pago (voz y pantalla)
+
+Todo ocurre en el navegador (`app/static/index.html`); el servidor no cambia.
+
+- Se activan **por equipo** con el botón *Activar avisos* (`localStorage.avisos = "1"`).
+- Cada 4 s, `revisarNuevos()` pide `/api/pagos?periodo=hoy` y anuncia los pagos con `id`
+  mayor a `ultimoIdAnunciado` (guardado en `localStorage`), si llegaron hace menos de
+  10 minutos y no están validados. Al activar por primera vez solo toma referencia: no
+  anuncia lo que ya estaba. Si la base se reinicia (ids menores), se vuelve a tomar referencia.
+- Por cada pago: aviso en pantalla (`.toast`), tono con Web Audio y voz con
+  `speechSynthesis` (voz `es-CO`, si no `es-419`, `es-MX`, `es-US` u otra en español).
+- El monto se convierte a palabras con `pesosEnLetras()` (ej. `4500000` centavos →
+  "cuarenta y cinco mil pesos") para que ninguna voz lea mal los puntos de miles.
+
+| Estado | Pantalla | Voz |
+|---|---|---|
+| `pendiente` | Verde, monto, se cierra a los 15 s | "Pago recibido por {método}. {monto}." |
+| `sospechoso` | Rojo, "No entregar", queda fijo | Alarma + "Atención… no verificado. No entregue…" (sin monto) |
+| `rechazado` | Rojo | "Transacción rechazada en {fuente}, por {monto}…" |
+| `revisar` | Naranja | "Llegó una notificación de {fuente} que hay que revisar." |
+
+- Nunca se dice el nombre del pagador (privacidad frente a otros clientes).
+- Los navegadores bloquean el audio hasta que el usuario toca la página: el botón, o el
+  primer toque tras recargar, crea/reanuda el `AudioContext`.
+- En `localhost` se pide `navigator.wakeLock` para que la pantalla no se apague
+  (en `http://192.168…` el navegador no lo permite).
+
 ## API HTTP
 
 Servidor: `ThreadingHTTPServer` en `0.0.0.0:8080` (librería estándar). Si hay PIN,

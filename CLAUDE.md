@@ -39,7 +39,7 @@ Para ver el panel en el navegador integrado: `.claude/launch.json` → configura
 | `app/parsers.py` | Lectores `leer_bancolombia()` / `leer_bold()`, `parse_monto()`, `elegir_monto()` |
 | `app/db.py` | SQLite: tablas `pagos`, `ajustes`, `estado` |
 | `app/servidor.py` | API HTTP y reglas de acceso (PIN, "solo local") |
-| `app/static/index.html` | Panel completo (HTML + CSS + JS sin frameworks) |
+| `app/static/index.html` | Panel completo (HTML + CSS + JS sin frameworks), incluye avisos con voz |
 | `app/certificados.py` | Contexto SSL con certificados del sistema en Mac |
 | `actualizar.py` | Actualizador desde GitHub (git o ZIP) |
 | `Iniciar …` / `Actualizar …` | Lanzadores de doble clic `.command` (Mac) y `.bat` (Windows) |
